@@ -1,0 +1,78 @@
+version: '2'
+volumes:
+    mariadb:
+        driver: 'local'
+    zabbix:
+        driver: 'local'
+services:
+    mariadb:
+        build: './mariadb'
+        image: 'mariadb:latest'
+        container_name: 'mariadb'
+        volumes: 
+            - 'mariadb:/var/lib/mysql'
+        hostname: 'mariadb'
+        environment:
+            - DATABASE_ROOT_PASSWORD=p@ssword
+            - DATABASE_NAME=zabbix
+            - DATABASE_USERNAME=zabbix
+            - DATABASE_PASSWORD=zabbix
+        logging:
+            driver: 'json-file'
+            options:
+                max-size: '10m'
+                max-file: '1'
+        restart: 'unless-stopped'
+        networks:
+            - 'alchymia'
+    https-portal:
+        build: './https-portal/nginx'
+        image: 'https-portal'
+        container_name: 'https-portal'
+        ports:
+            - '80:80'
+            - '443:443'
+        logging:
+            driver: 'json-file'
+            options:
+                max-size: '10m'
+                max-file: '1'
+        volumes:
+            - './https-portal/logs:/var/log/nginx'
+        tty: true
+        restart: 'always'
+        environment:
+            DOMAINS: 'zabbix.example.com -> http://zabbix'
+            STAGE:   'local'
+        networks:
+            - 'alchymia'
+    zabbix:
+        build: './zabbix'
+        image: 'zabbix:latest'
+        container_name: 'zabbix'
+        hostname: 'zabbix'
+        environment:
+            - HOST_NAME=mariadb
+            - DATABASE_NAME=zabbix
+            - DATABASE_PORT=3306
+            - DATABASE_USER=zabbix
+            - DATABASE_PASSWORD=zabbix
+        logging:
+            driver: 'json-file'
+            options:
+                max-size: '10m'
+                max-file: '1'
+        volumes:
+            - './zabbix/nginx/logs:/var/log/nginx'
+            - './zabbix/nginx/conf.d:/etc/nginx/conf.d'
+            - 'zabbix:/etc/zabbix'
+            - 'zabbix:/var/log/zabbix'
+        depends_on:
+            - 'mariadb'
+        tty: true
+        restart: 'unless-stopped'
+        networks:
+            - 'alchymia'
+networks:
+  alchymia:
+    driver: 'bridge'
